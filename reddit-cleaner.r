@@ -22,6 +22,7 @@ if (str_sub(raw_csv, -4, -1) == ".csv") {
 #remove spaces and hash in header
 colnames(comment_list) = gsub(" ", "_", colnames(comment_list))
 colnames(comment_list) = gsub("#", "", colnames(comment_list))
+tot_entries <- nrow(comment_list)
 
 comments <- comment_list %>%
     rename("User_Karma" = 8) %>%
@@ -34,7 +35,15 @@ comments <- comment_list %>%
 og_comment <- comments[1, ] #extract original post
 og_comment <- og_comment %>%
     select(-comment_len)
-top10per <- round(nrow(comment_list) * .1, 0)
+
+#keep smaller sets of data
+if (tot_entries > 30) {
+    num_entries <- tot_entries
+} else if (tot_entries < 300) {
+   num_entries <- round(tot_entries * .2, 0)
+} else {
+    num_entries <- round(tot_entries * .1, 0)
+}
 
 # filters by users' karma (whether they are good posters or not),
 # checks for comments only longer than 8 words
@@ -45,21 +54,24 @@ comments_filtered <- comments %>%
     filter(abs_score / User_Karma <= .25) %>%
     arrange(-abs_score) %>%
     select(-comment_len)
-comment_top10 <- comments_filtered %>%
-    slice(1:(top10per)) %>%
+comment_top <- comments_filtered %>%
+    slice(1:(num_entries)) %>%
     select(-abs_score)
 
 #Keep original comment
-comment_top10 <- rbind(og_comment, comment_top10)
-comment_top10 <- distinct(comment_top10) #checks for original post
-#df <- comment_top10[ , c(1, 9, 2, 3, 4, 5, 6, 7, 8)] #reorder
-head(comment_top10)
+comment_top <- rbind(og_comment, comment_top)
+comment_top <- distinct(comment_top) #checks for original post
+
+#Comment detector (logical)
+# Boomer? Uses extra spaces typically. (ie "I like cake.  It's good")
+comment_top <- comment_top %>%
+    mutate(Boomer_Detected = str_detect(Comment, "\\.  "))
 
 #Generate file name, paste0 removes space that occurs before periods
-if (nrow(comment_top10) > 0) {
+if (nrow(comment_top) > 1) {
     file_path <- paste0("C:\\Users\\p40014d\\OneDrive - AholdDelhaize.com\\Documents\\Web Scraping\\Self-Checkout - Reddit\\R-Cleaned\\R Clean ", # nolint
                         file_name, ".csv")
-    write_excel_csv(comment_top10, file_path) #saves CSV with UTF-8 encoding
+    write_excel_csv(comment_top, file_path) #saves CSV with UTF-8 encoding
     print("SUCCESS!")
 } else {
     print("There are no applicable rows in this dataframe.")
